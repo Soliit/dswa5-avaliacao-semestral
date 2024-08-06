@@ -68,13 +68,34 @@ def index():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.name.data).first()
         if user is None:
-            user = User(username=form.name.data)
+            user_role = Role.query.filter_by(name='User').first()
+
+            if user_role is None:
+                user_role = Role(name='User')
+                db.session.add(user_role)
+                db.session.commit()
+
+            user = User(username=form.name.data, role=user_role)
             db.session.add(user)
             db.session.commit()
             session['known'] = False
         else:
+            if user.role is None:
+                user_role = Role.query.filter_by(name='User').first()
+
+                if user_role is None:
+                    user_role = Role(name='User')
+                    db.session.add(user_role)
+                    db.session.commit()
+
+                user.role = user_role
+                db.session.commit()
+
             session['known'] = True
         session['name'] = form.name.data
         return redirect(url_for('index'))
+
+    users = User.query.all()
+
     return render_template('index.html', form=form, name=session.get('name'),
-                           known=session.get('known', False))
+                           known=session.get('known', False), users=users)
