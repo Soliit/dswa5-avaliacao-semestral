@@ -1,9 +1,10 @@
 import os
-from flask import Flask, render_template, session, redirect, url_for
+from datetime import datetime
+from flask import Flask, render_template, session
 from flask_bootstrap import Bootstrap
 from flask_moment import Moment
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField
+from wtforms import StringField, SubmitField, SelectField
 from wtforms.validators import DataRequired
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -20,6 +21,16 @@ bootstrap = Bootstrap(app)
 moment = Moment(app)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+
+class Teacher(db.Model):
+    __tablename__ = 'teachers'
+    id = db.Column(db.Integer, primary_key=True)
+    fullname = db.Column(db.String(64), unique=True, index=True)
+    subject = db.Column(db.String(64), unique=False, index=True)
+
+    def __repr__(self):
+        return '<Teacher %r>' % self.fullname
 
 
 class Role(db.Model):
@@ -43,8 +54,12 @@ class User(db.Model):
 
 
 class NameForm(FlaskForm):
-    name = StringField('What is your name?', validators=[DataRequired()])
-    submit = SubmitField('Submit')
+
+    fullname = StringField('Cadastre o novo Professor:', validators=[DataRequired()])
+    choices = [('DSWA5', 'DSWA5'), ('GPSA5', 'GPSA5'), ('IHCA5', 'IHCA5'), ('IHCA5', 'IHCA5'), ('SODA5', 'SODA5'), ('PJIA5', 'PJIA5'), ('TCOA5', 'TCOA5'),]
+    subject = SelectField('Disciplina associada:', choices=choices)
+
+    submit = SubmitField('Enviar')
 
 
 @app.shell_context_processor
@@ -64,38 +79,44 @@ def internal_server_error(e):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+
+    return render_template('index.html', current_time=datetime.utcnow())
+
+@app.route('/professores', methods=['GET', 'POST'])
+def professores():
     form = NameForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(username=form.name.data).first()
-        if user is None:
-            user_role = Role.query.filter_by(name='User').first()
+        fullname = form.fullname.data
+        subject = form.subject.data
 
-            if user_role is None:
-                user_role = Role(name='User')
-                db.session.add(user_role)
-                db.session.commit()
+        teacher = Teacher.query.filter_by(fullname=fullname).first()
 
-            user = User(username=form.name.data, role=user_role)
-            db.session.add(user)
+        if teacher is None:
+
+            teacher = Teacher(fullname=fullname, subject=subject)
+            db.session.add(teacher)
             db.session.commit()
             session['known'] = False
+
         else:
-            if user.role is None:
-                user_role = Role.query.filter_by(name='User').first()
 
-                if user_role is None:
-                    user_role = Role(name='User')
-                    db.session.add(user_role)
-                    db.session.commit()
-
-                user.role = user_role
-                db.session.commit()
-
+            teacher.subject = subject
+            db.session.commit()
             session['known'] = True
-        session['name'] = form.name.data
-        return redirect(url_for('index'))
 
-    users = User.query.all()
+        session['name'] = fullname
+        session['subject'] = subject
 
-    return render_template('index.html', form=form, name=session.get('name'),
-                           known=session.get('known', False), users=users)
+    teachers = Teacher.query.all()
+
+    return render_template('professores.html', form=form, known=session.get('known', False), teachers=teachers)
+
+
+@app.route('/disciplinas', methods=['GET', 'POST'])
+def disciplinas():
+    return render_template('disciplinas.html')
+
+
+@app.route('/alunos', methods=['GET', 'POST'])
+def alunos():
+    return render_template('alunos.html')
